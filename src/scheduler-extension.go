@@ -2,11 +2,15 @@ package main
 
 import (
 	"flag"
-	"fmt"
+	"bytes"
 	"context"
 	"path/filepath"
 	"strings"
 	"strconv"
+	"net/http"
+	"io"
+	"encoding/json"
+	"github.com/julienschmidt/httprouter"
 
 	"k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
@@ -54,12 +58,7 @@ func nodeThermalScore(nodeName string) int64 {
 }
 
 func nodeThermalMetric(nodeName string) float64 {
-	var kubeconfig *string
-	home := homedir.HomeDir()
-	kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional)")
-	flag.Parse()
-
-	config, _ := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+	config, _ := rest.InClusterConfig()
 	clientset, _ := kubernetes.NewForConfig(config)
 
 	path := "apis/custom.metrics.k8s.io/v1beta1/nodes/" + nodeName + "/node_thermal_zone_temp"
@@ -75,9 +74,27 @@ func nodeThermalMetric(nodeName string) float64 {
 	return metric
 }
 
+func prioritizeRoute(prioritizeMethod PrioritizeMethod) httprouter.Handle {
+	return func(writer http.ResponseWriter, request *http.Request, p httprouter.Params) {
+		var buffer bytes.Buffer
+		body := io.TeeReader(request.Body, &buffer)
+
+		var extenderArgs extender.ExtenderArgs
+
+		json.NewDecoder(body).Decode(&extenderArgs)
+		priorityList, _ := prioritizeMethod.Handler(extenderArgs)
+		result, _ := json.Marshal(priorityList)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		writer.Write(result)
+	}
+}
+
 func main() {
-	metric := 32.265
-	convertedMetric := 100 - metric
-	intMetric := int(convertedMetric)
-	fmt.Println(intMetric)
+	router := httprouter.New()
+
+	prioritizePath := "prioritize/thermal_score"
+	router.POST(prioritizePath, prioritizeRoute(ThermalPriority))
+
+	http.ListenAndServe("http://localhost:4321/thermalScheduler", router)
 }
