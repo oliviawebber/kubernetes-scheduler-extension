@@ -35,8 +35,5 @@ spec:
         - name: thermal-aware-scheduler-extension
           image: 10.0.0.100:5000/webberlh/thermal-aware-scheduler:latest
           imagePullPolicy: Always
-          args:
-            - -v=6
-            - --http-addr=:80
           ports:
             - containerPort: 80
