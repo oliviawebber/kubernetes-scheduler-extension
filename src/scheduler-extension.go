@@ -57,6 +57,40 @@ func nodeThermalScore(nodeName string) int64 {
 	return int64(100.0 - metric)
 }
 
+type FilterMethod struct {
+	Name string
+	Func func(pod v1.Pod, nodes []v1.Node) (*extender.ExtenderFilterResult, error)
+}
+
+func (f FilterMethod) Handler(args extender.ExtenderArgs) *extender.ExtenderFilterResult {
+	return f.Func(*args.Pod, args.Nodes.Items)
+}
+
+var ThermalFilter = FilterMethod{
+	Name: "thermal_score",
+	Func: func(pod v1.Pod, nodes []v1.Node) (*extender.ExtenderFilterResult, error) {
+		canSchedule := make([]v1.Node, 0, len(nodes))
+		cannotSchedule := make(map[string]string)
+		for _, node := range nodes {
+			if (nodeThermalMetric(node.Name) > 40) {
+				cannotSchedule[node.Name] = "Too hot"
+			} else {
+				canSchedule = append(canSchedule, node)
+			}
+		}
+
+		result := extender.ExtenderFilterResult{
+			Nodes: &v1.NodeList{
+				Items: canSchedule,
+			},
+			FailedNodes: cannotSchedule,
+			Error: "",
+		}
+
+		return &result
+	},
+}
+
 func nodeThermalMetric(nodeName string) float64 {
 	config, _ := rest.InClusterConfig()
 	clientset, _ := kubernetes.NewForConfig(config)
