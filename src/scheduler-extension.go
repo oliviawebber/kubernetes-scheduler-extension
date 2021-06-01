@@ -124,11 +124,29 @@ func prioritizeRoute(prioritizeMethod PrioritizeMethod) httprouter.Handle {
 	}
 }
 
+func filterRoute(filterMethod filterMethod) httprouter.Handle {
+	return func(writer http.ResponseWriter, request *http.Request, p httprouter.Params) {
+		var buffer bytes.Buffer
+		body := io.TeeReader(request.Body, &buffer)
+
+		var extenderArgs extender.ExtenderArgs
+
+		json.NewDecoder(body).Decode(&extenderArgs)
+		priorityList, _ := filterMethod.Handler(extenderArgs)
+		result, _ := json.Marshal(priorityList)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		writer.Write(result)
+	}
+}
+
 func main() {
 	router := httprouter.New()
 
 	prioritizePath := "prioritize/thermal_score"
 	router.POST(prioritizePath, prioritizeRoute(ThermalPriority))
+	filterPath := "filter/thermal_score"
+	router.POST(filterPath, filterRoute(ThermalFilter))
 
 	http.ListenAndServe("http://localhost:4321/thermalScheduler", router)
 }
