@@ -1,10 +1,9 @@
 package main
 
 import (
-	"flag"
+	"fmt"
 	"bytes"
 	"context"
-	"path/filepath"
 	"strings"
 	"strconv"
 	"net/http"
@@ -14,12 +13,7 @@ import (
 
 	"k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
-	//"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/util/homedir"
-	//metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	//schedulerapi "k8s.io/kubernetes/pkg/scheduler/apis/config/v1"
+	"k8s.io/client-go/rest"
 	extender "k8s.io/kube-scheduler/extender/v1"
 )
 
@@ -62,7 +56,7 @@ type FilterMethod struct {
 	Func func(pod v1.Pod, nodes []v1.Node) (*extender.ExtenderFilterResult, error)
 }
 
-func (f FilterMethod) Handler(args extender.ExtenderArgs) *extender.ExtenderFilterResult {
+func (f FilterMethod) Handler(args extender.ExtenderArgs) (*extender.ExtenderFilterResult, error) {
 	return f.Func(*args.Pod, args.Nodes.Items)
 }
 
@@ -87,7 +81,7 @@ var ThermalFilter = FilterMethod{
 			Error: "",
 		}
 
-		return &result
+		return &result, nil
 	},
 }
 
@@ -124,7 +118,7 @@ func prioritizeRoute(prioritizeMethod PrioritizeMethod) httprouter.Handle {
 	}
 }
 
-func filterRoute(filterMethod filterMethod) httprouter.Handle {
+func filterRoute(filterMethod FilterMethod) httprouter.Handle {
 	return func(writer http.ResponseWriter, request *http.Request, p httprouter.Params) {
 		var buffer bytes.Buffer
 		body := io.TeeReader(request.Body, &buffer)
@@ -143,10 +137,14 @@ func filterRoute(filterMethod filterMethod) httprouter.Handle {
 func main() {
 	router := httprouter.New()
 
-	prioritizePath := "prioritize/thermal_score"
+	prioritizePath := "/thermalScheduler/prioritize/thermal_score"
 	router.POST(prioritizePath, prioritizeRoute(ThermalPriority))
-	filterPath := "filter/thermal_score"
+	filterPath := "/thermalScheduler/filter/thermal_score"
 	router.POST(filterPath, filterRoute(ThermalFilter))
 
-	http.ListenAndServe("http://localhost:4321/thermalScheduler", router)
+	fmt.Println("Starting server")
+	if err := http.ListenAndServe(":4321", router); err != nil {
+		fmt.Println(err)
+	}
+	fmt.Println("Stopping server")
 }
