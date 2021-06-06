@@ -31,7 +31,7 @@ func (p PrioritizeMethod) Handler(args extender.ExtenderArgs) (*extender.HostPri
 // ImagePriority defines the name and method for a priotity
 // for each priority we should add a PrioritizeMethod
 var ThermalPriority = PrioritizeMethod{
-	Name: "thermal_score",
+	Name: "thermal_prioritize",
 	Func: func(pod v1.Pod, nodes []v1.Node) (*extender.HostPriorityList, error) {
 		var priorityList extender.HostPriorityList
 		priorityList = make([]extender.HostPriority, len(nodes))
@@ -61,7 +61,7 @@ func (f FilterMethod) Handler(args extender.ExtenderArgs) (*extender.ExtenderFil
 }
 
 var ThermalFilter = FilterMethod{
-	Name: "thermal_score",
+	Name: "thermal_filter",
 	Func: func(pod v1.Pod, nodes []v1.Node) (*extender.ExtenderFilterResult, error) {
 		canSchedule := make([]v1.Node, 0, len(nodes))
 		cannotSchedule := make(map[string]string)
@@ -137,13 +137,13 @@ func filterRoute(filterMethod FilterMethod) httprouter.Handle {
 func main() {
 	router := httprouter.New()
 
-	prioritizePath := "/thermalScheduler/prioritize/thermal_score"
+	prioritizePath := "/thermal_scheduler/prioritize/thermal_prioritize"
 	router.POST(prioritizePath, prioritizeRoute(ThermalPriority))
-	filterPath := "/thermalScheduler/filter/thermal_score"
+	filterPath := "/thermal_scheduler/filter/thermal_filter"
 	router.POST(filterPath, filterRoute(ThermalFilter))
 
 	fmt.Println("Starting server")
-	if err := http.ListenAndServe(":4321", router); err != nil {
+	if err := http.ListenAndServe(":80", router); err != nil {
 		fmt.Println(err)
 	}
 	fmt.Println("Stopping server")

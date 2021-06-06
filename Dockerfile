@@ -6,7 +6,7 @@ COPY go.mod .
 COPY go.sum .
 COPY ./src .
 EXPOSE 80
-EXPOSE 4321
+EXPOSE 32123
 RUN go build scheduler-extension.go
-ENTRYPOINT ["scheduler-extension"]
+ENTRYPOINT ["/go/thermal-aware-scheduler/scheduler-extension"]
 
